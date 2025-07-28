@@ -186,7 +186,7 @@ def downloader(min_nb_unique_spp, min_nb_seq, phyla = Metazoan_phyla, kingdom = 
 
 
 # For testing:
-downloader(2, 3, phyla = {"Cnidaria": ["Hydrozoa"]}, kingdom = "Cnidaria")
+# downloader(2, 3, phyla = {"Cnidaria": ["Hydrozoa"]}, kingdom = "Cnidaria")
 
 
 # ---------- Main Function ----------
