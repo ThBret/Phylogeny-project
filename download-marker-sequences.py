@@ -5,13 +5,16 @@ from tqdm import tqdm
 
 # Set working directory (local/HPC)
 if len(sys.argv) < 2 or sys.argv[1] == 'local':
-    base_path = '/Users/thibaultbret'
+    BASE_PATH = '/Users/thibaultbret'
 else:
-    base_path = '/home/thibault'
+    BASE_PATH = '/home/thibault'
 
+# Set output path
+OUT_PATH = os.path.join(BASE_PATH, 'Taxa')
+os.mkdir(OUT_PATH)
 
 # ---------- Helper Functions ----------
-def writefile(class_name, genus, df):
+def writefile(path, class_name, genus, df):
     """
     Write a FASTA file for a given genus, containing all its species sequences.
     """
@@ -20,14 +23,14 @@ def writefile(class_name, genus, df):
         f'>{genus_df.index[i]}_{genus_df.species[i]}\n{genus_df.sequence[i]}\n'
         for i in range(len(genus_df))
         ])
-    output_path = os.path.join(base_path, class_name, f'{genus}.fas')
-    with open(output_path, 'w') as f:
+    FILE_PATH = os.path.join(path, class_name, f'{genus}.fas')
+    with open(FILE_PATH, 'w') as f:
         f.write(genus_txt)
 
 
 def delfolder(path):
     """
-    Delete all empty subdirectories under a given path.
+    Delete all empty subdirectories in a given directory.
     """
     for dirpath, dirnames, filenames in os.walk(path, topdown = False):
         if not dirnames and not filenames:
@@ -83,15 +86,15 @@ def downloader(min_nb_unique_spp, min_nb_seq, phyla = Metazoan_phyla, kingdom = 
     genus_log = pd.DataFrame(columns = ['genus','number of spp','number of sq','class'])
 
     # Set working directory
-    os.chdir(base_path)
+    os.chdir(OUT_PATH)
 
     for phylum, classes in phyla.items():
         for class_name in classes:
             # Define class path
-            class_dir = os.path.join(base_path, class_name)
+            CLASS_PATH = os.path.join(OUT_PATH, class_name)
             
              # Skip class if directory already exists
-            if os.path.isdir(class_dir):
+            if os.path.isdir(CLASS_PATH):
                 print(f'\033[1m/!\ Skipping {class_name} (directory already exists) /!\ \033[0m \n')
                 continue
 
@@ -110,7 +113,7 @@ def downloader(min_nb_unique_spp, min_nb_seq, phyla = Metazoan_phyla, kingdom = 
 
             # ---------- 2. Format Sequences ----------
             species, sequences, ids = [], [], []
-            os.makedirs(class_dir) # Create class folder
+            os.makedirs(CLASS_PATH) # Create class folder
 
             # Read the downloaded FASTA file
             with open(f'{class_name}.fas', encoding = 'utf-8', errors = 'ignore') as file:
@@ -133,9 +136,15 @@ def downloader(min_nb_unique_spp, min_nb_seq, phyla = Metazoan_phyla, kingdom = 
             df['genus'] = df['species'].str.split('_').str[0]
             df.sort_values('genus', inplace = True)
 
+            # Avoid duplicates
+            written_genera = set()
+
             # Write FASTA file for each genus contained in the class
-            for genus in tqdm(df.genus.unique(), desc = f'Processing genera from {class_name}'):
-                writefile(class_name, genus, df)
+            for genus in tqdm(df.genus.unique(), desc = f'Processing genera from {class_name}'):   
+                if genus in written_genera:
+                    continue # skip duplicate
+                writefile(OUT_PATH, class_name, genus, df)
+                written_genera.add(genus)
             
             # Delete the original (now redundant) FASTA file
             os.remove(f'{class_name}.fas')
@@ -143,12 +152,12 @@ def downloader(min_nb_unique_spp, min_nb_seq, phyla = Metazoan_phyla, kingdom = 
             # ---------- 3. Filter & Log Genera ----------
             genera_data = []
 
-            for genus_file in tqdm(sorted(os.listdir(class_dir)), desc = f'Filtering genera from {class_name}'):
+            for genus_file in tqdm(sorted(os.listdir(CLASS_PATH)), desc = f'Filtering genera from {class_name}'):
                 genus_name, ext = os.path.splitext(genus_file)
 
                 # Process only .fas files
                 if ext == '.fas' and not genus_file.startswith('.'):
-                    with open(os.path.join(class_dir, genus_file), 'r') as fp:
+                    with open(os.path.join(CLASS_PATH, genus_file), 'r') as fp:
                         contents = fp.read()
 
                     # Extract species names and sequences from the .fas file
@@ -165,7 +174,7 @@ def downloader(min_nb_unique_spp, min_nb_seq, phyla = Metazoan_phyla, kingdom = 
                     if unique_spp_count < min_nb_unique_spp or seq_count < min_nb_seq:
                         kept = 'No'
                         try:
-                            os.remove(os.path.join(class_dir, genus_file))
+                            os.remove(os.path.join(CLASS_PATH, genus_file))
                         except FileNotFoundError:
                             print(f'File not found: {genus_file}')
                         
@@ -181,12 +190,12 @@ def downloader(min_nb_unique_spp, min_nb_seq, phyla = Metazoan_phyla, kingdom = 
             print(f'{class_name} has been successfully downloaded and processed.\n')
     
     # Export global log to Excel
-    log_path = os.path.join(base_path, f'log_{kingdom}.xlsx')
-    genus_log.to_excel(log_path, sheet_name = kingdom, index = False)
+    LOG_PATH = os.path.join(BASE_PATH, f'log_{kingdom}.xlsx')
+    genus_log.to_excel(LOG_PATH, sheet_name = kingdom, index = False)
 
 
 # For testing:
-# downloader(2, 3, phyla = {"Cnidaria": ["Hydrozoa"]}, kingdom = "Cnidaria")
+# downloader(2, 3, phyla = {"Cnidaria": ["Hydrozoa"], "Tardigrada": ['Eutardigrada']}, kingdom = "test")
 
 
 # ---------- Main Function ----------
